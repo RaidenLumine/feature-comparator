@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "target": "ES5",
+    "lib": ["ES5", "DOM"],
+    "checkJs": true,
+    "noEmit": true
+  },
+  "include": ["js/**/*"]
+}

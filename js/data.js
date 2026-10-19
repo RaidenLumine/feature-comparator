@@ -1,3 +1,4 @@
+// @ts-check
 /* 数据层：特征向量、卡片选项映射、素材说明
  *
  * 数值由真实叶片照片计算得出，与 assets/ 中的图片一一对应。
@@ -8,8 +9,10 @@
  * 因此学生按卡片如实填写时，选出的组合会精确等于对应植物，
  * 这正是"把卡片上的话翻译成机器能读的数字"这一步。
  */
-window.RC = window.RC || {};
 
+window.RC = window.RC || /** @type {any} */ ({});
+
+/** @type {RCDataShape} */
 RC.data = {
   features: ["轮廓", "颜色", "纹理"],
 
@@ -43,7 +46,7 @@ RC.data = {
     {
       feature: "轮廓",
       options: [
-        { key: "smooth",  label: "光滑", value: 0.438 },
+        { key: "smooth",   label: "光滑", value: 0.438 },
         { key: "serrated", label: "锯齿", value: 0.776 }
       ]
     },

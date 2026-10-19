@@ -1,0 +1,13 @@
+{
+  "name": "feature-comparator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "《图像识别的过程》课堂演示：把叶片特征变成数字，比较谁更像谁",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "check": "tsc --noEmit && node --check js/config.js && node --check js/data.js && node --check js/engine.js && node --check js/render.js && node --check js/app.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

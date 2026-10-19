@@ -1,3 +1,4 @@
+// @ts-check
 /* 计算层：特征距离与相似度
  * 只做纯计算，不碰 DOM，也不依赖绘制。
  *
@@ -7,14 +8,24 @@
  *   3. 相似度：s = 1 / (d + eps)，再归一化为百分比
  *      eps 用于避免 d=0 时除零，同时抑制过度自信
  */
-window.RC = window.RC || {};
 
+window.RC = window.RC || /** @type {any} */ ({});
+
+/** @type {EngineModule} */
 RC.engine = {
   EPS: 0.06,
 
-  /* 返回两向量在指定维度上的欧氏距离；没有任何维度被启用时返回 null */
+  /**
+   * 两向量在指定维度上的欧氏距离。
+   * 没有任何维度被启用时返回 null。
+   * @param {FeatureVector} a
+   * @param {FeatureVector} b
+   * @param {boolean[]} enabled
+   * @returns {number | null}
+   */
   distance: function (a, b, enabled) {
-    var sum = 0, used = 0;
+    var sum = 0;
+    var used = 0;
     for (var i = 0; i < a.length; i++) {
       if (!enabled[i]) continue;
       var d = a[i] - b[i];
@@ -24,10 +35,16 @@ RC.engine = {
     return used ? Math.sqrt(sum) : null;
   },
 
-  /* 核心：对一个任意特征向量做评估 */
+  /**
+   * 核心：对一个任意特征向量做评估
+   * @param {FeatureVector} vec
+   * @param {boolean[]} enabled
+   * @returns {CompareResult}
+   */
   evaluateVector: function (vec, enabled) {
     var data = RC.data;
 
+    /** @type {Record<string, number | null>} */
     var dist = {};
     data.refOrder.forEach(function (key) {
       dist[key] = RC.engine.distance(vec, data.refs[key].vec, enabled);
@@ -36,20 +53,31 @@ RC.engine = {
     var featureCount = enabled.filter(Boolean).length;
 
     // 没有任何可用特征
-    if (dist[data.refOrder[0]] === null) {
+    var firstKey = data.refOrder[0];
+    if (dist[firstKey] === null) {
+      /** @type {PctMap} */
       var zero = {};
       data.refOrder.forEach(function (k) { zero[k] = 0; });
       return { pct: zero, winner: null, margin: 0, featureCount: 0, vec: vec.slice() };
     }
 
-    var sims = {}, total = 0;
+    /** @type {Record<string, number>} */
+    var sims = {};
+    var total = 0;
     data.refOrder.forEach(function (k) {
-      sims[k] = 1 / (dist[k] + RC.engine.EPS);
-      total += sims[k];
+      var d = dist[k];
+      // d 已排除 null 情况：上面已确保首个候选非 null，
+      // 但其余候选可能因维度问题为 null，这里做一次兜底。
+      var value = (d === null) ? 0 : 1 / (d + RC.engine.EPS);
+      sims[k] = value;
+      total += value;
     });
 
+    /** @type {PctMap} */
     var pct = {};
-    data.refOrder.forEach(function (k) { pct[k] = sims[k] / total * 100; });
+    data.refOrder.forEach(function (k) {
+      pct[k] = total ? sims[k] / total * 100 : 0;
+    });
 
     var winner = pct.jia >= pct.yi ? "jia" : "yi";
     var margin = Math.abs(pct.jia - pct.yi);
@@ -63,13 +91,22 @@ RC.engine = {
     };
   },
 
-  /* 对图片样本做评估 */
+  /**
+   * 对图片样本做评估
+   * @param {string} sampleKey
+   * @param {boolean[]} enabled
+   * @returns {CompareResult}
+   */
   evaluate: function (sampleKey, enabled) {
     var vec = RC.data.sampleData[sampleKey].vec;
     return RC.engine.evaluateVector(vec, enabled);
   },
 
-  /* 把卡片选项转换成特征向量 */
+  /**
+   * 把卡片选项转换成特征向量
+   * @param {string[]} choices
+   * @returns {FeatureVector}
+   */
   vectorFromChoices: function (choices) {
     return RC.data.manualMap.map(function (group, i) {
       var key = choices[i];
@@ -80,7 +117,12 @@ RC.engine = {
     });
   },
 
-  /* 根据结果生成一句提示语 */
+  /**
+   * 根据结果生成一句提示语
+   * @param {CompareResult} result
+   * @param {boolean} [manual]
+   * @returns {string}
+   */
   note: function (result, manual) {
     var th = RC.config.thresholds;
 
@@ -109,7 +151,11 @@ RC.engine = {
     return "特征开得少，结论就更容易被单一因素带偏。";
   },
 
-  /* 置信度文案 */
+  /**
+   * 置信度文案
+   * @param {CompareResult} result
+   * @returns {string}
+   */
   confidenceText: function (result) {
     var th = RC.config.thresholds;
     if (result.margin > th.high) return "把握较高";

@@ -181,6 +181,19 @@ Recognizer/
 
 各层职责单一，改配色只动 `config.js`，改算法只动 `engine.js`，改布局只动 `render.js`。
 
+## 类型检查
+
+代码用 JSDoc 写了完整类型（见 `js/types.d.ts`），**浏览器直接运行，无需编译**。
+
+需要检查类型时：
+
+```bash
+npm install      # 只装一个 typescript
+npm run typecheck
+```
+
+VS Code / WebStorm 打开文件夹即会自动按 `jsconfig` 规则做校验，无需安装任何东西。
+
 ---
 
 ## 风险预案

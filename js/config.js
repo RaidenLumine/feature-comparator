@@ -1,8 +1,11 @@
+// @ts-check
 /* 配置层：画布尺寸、配色、字体
  * 所有绘制尺寸都以 1600×900 的设计坐标为基准，运行时整体等比缩放。
  */
-window.RC = window.RC || {};
 
+window.RC = window.RC || /** @type {any} */ ({});
+
+/** @type {ConfigShape} */
 RC.config = {
   // 设计画布
   DW: 1600,

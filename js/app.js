@@ -1,3 +1,4 @@
+// @ts-check
 /* 应用层：状态管理、图片预加载、事件绑定、动画循环
  * 依赖 config.js / data.js / engine.js / render.js，按此顺序引入。
  */
@@ -6,17 +7,23 @@
   var engine = RC.engine;
   var data = RC.data;
 
-  /* ---------- 状态 ---------- */
+  /* ---------- 初始值 ---------- */
 
+  /** @type {boolean[]} */
+  var initialEnabled = [true, true, true];
+  var initialResult = engine.evaluate("s1", initialEnabled);
+
+  /** @type {AppState} */
   var state = {
     manual: false,                          // false = 图片样本；true = 照卡片填
     sample: "s1",
-    enabled: [true, true, true],
+    enabled: initialEnabled,
     choices: data.manualDefault.slice(),    // 手动模式下三个特征的选择
-    result: null,
-    shown: { jia: 0, yi: 0 },               // 动画中的显示值
+    result: initialResult,
+    shown: { jia: initialResult.pct.jia, yi: initialResult.pct.yi },
     flash: 0,                               // 结果变化时的高亮强度
 
+    /** @param {string} key */
     onSample: function (key) {
       state.manual = false;
       state.sample = key;
@@ -28,11 +35,16 @@
       refresh(true);
     },
 
+    /**
+     * @param {number} groupIndex
+     * @param {string} key
+     */
     onChoice: function (groupIndex, key) {
       state.choices[groupIndex] = key;
       refresh(true);
     },
 
+    /** @param {number} idx */
     onToggleFeature: function (idx) {
       state.enabled[idx] = !state.enabled[idx];
       refresh(true);
@@ -48,17 +60,17 @@
     }
   };
 
-  /* 先算一次，保证首帧绘制时有结果可用 */
-  state.result = engine.evaluate(state.sample, state.enabled);
-  state.shown.jia = state.result.pct.jia;
-  state.shown.yi = state.result.pct.yi;
-
+  /** @type {Record<string, HTMLImageElement | null>} */
   var images = {};
+  /** @type {string | null} */
   var hoverId = null;
   var animating = false;
 
   /* ---------- 计算与动画 ---------- */
 
+  /**
+   * @returns {CompareResult}
+   */
   function computeResult() {
     if (state.manual) {
       var vec = engine.vectorFromChoices(state.choices);
@@ -67,6 +79,9 @@
     return engine.evaluate(state.sample, state.enabled);
   }
 
+  /**
+   * @param {boolean} animate
+   */
   function refresh(animate) {
     state.result = computeResult();
     state.flash = 1;
@@ -91,12 +106,16 @@
 
     data.refOrder.forEach(function (k) {
       var target = state.result.pct[k];
-      var d = target - state.shown[k];
+      var current = k === "jia" ? state.shown.jia : state.shown.yi;
+      var d = target - current;
       if (Math.abs(d) > 0.25) {
-        state.shown[k] += d * 0.35;
+        if (k === "jia") state.shown.jia = current + d * 0.35;
+        else state.shown.yi = current + d * 0.35;
         moving = true;
+      } else if (k === "jia") {
+        state.shown.jia = target;
       } else {
-        state.shown[k] = target;
+        state.shown.yi = target;
       }
     });
 
@@ -118,12 +137,17 @@
 
   /* ---------- 图片预加载 ---------- */
 
+  /**
+   * @param {(failed: string[]) => void} done
+   */
   function preload(done) {
+    /** @type {string[]} */
     var keys = [];
     data.refOrder.forEach(function (k) { keys.push(k); });
     data.samples.forEach(function (s) { keys.push(s.key); });
 
     var pending = keys.length;
+    /** @type {string[]} */
     var failed = [];
 
     keys.forEach(function (key) {
@@ -144,6 +168,9 @@
 
   /* ---------- 事件 ---------- */
 
+  /**
+   * @param {HTMLCanvasElement} canvas
+   */
   function bindEvents(canvas) {
     canvas.addEventListener("mousemove", function (e) {
       var p = render.toDesign(e.clientX, e.clientY);
@@ -173,7 +200,9 @@
         return;
       }
       if (k === "q" || k === "w" || k === "e") {
-        state.onToggleFeature({ q: 0, w: 1, e: 2 }[k]);
+        /** @type {Record<string, number>} */
+        var map = { q: 0, w: 1, e: 2 };
+        state.onToggleFeature(map[k]);
         return;
       }
       if (k === "m") {
@@ -201,7 +230,7 @@
 
   function toggleFullscreen() {
     if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-      var el = document.documentElement;
+      var el = /** @type {HTMLElement} */ (document.documentElement);
       if (el.requestFullscreen) el.requestFullscreen();
       else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
     } else {
@@ -217,6 +246,7 @@
 
   function applyQuery() {
     try {
+      /** @type {Record<string, string>} */
       var q = {};
       location.search.replace(/^\?/, "").split("&").forEach(function (kv) {
         if (!kv) return;
@@ -251,7 +281,13 @@
   /* ---------- 启动 ---------- */
 
   function boot() {
-    var canvas = document.getElementById("stage");
+    var el = document.getElementById("stage");
+    if (!(el instanceof HTMLCanvasElement)) {
+      console.error("找不到 #stage 画布元素");
+      return;
+    }
+    var canvas = el;
+
     render.init(canvas);
     render.resize();
 
