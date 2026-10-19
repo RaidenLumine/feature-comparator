@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="课堂演示：把叶片特征变成数字，比较谁更像谁">
+  <title>特征比对器 · 图像识别的过程</title>
+
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <canvas id="stage"></canvas>
+
+  <div id="fallback">
+    图片素材没有加载成功。<br>
+    请确认 <code>assets/</code> 文件夹与 <code>index.html</code> 在同一目录下，<br>
+    并且文件夹没有被压缩软件改名。
+  </div>
+
+  <!-- 按依赖顺序引入：配置 → 数据 → 计算 → 绘制 → 应用 -->
+  <script src="js/config.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

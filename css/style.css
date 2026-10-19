@@ -1,0 +1,32 @@
+/* 全局样式：画布铺满窗口，禁止滚动与选中 */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #0E1712;
+}
+
+#stage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 图片加载失败时的提示（正常情况下不会出现） */
+#fallback {
+  display: none;
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 24px 32px;
+  background: #F7F4EC;
+  color: #1A231D;
+  font: 15px/1.7 "Microsoft YaHei", "PingFang SC", sans-serif;
+  border-radius: 10px;
+  max-width: 520px;
+}
