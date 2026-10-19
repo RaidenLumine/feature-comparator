@@ -1,6 +1,10 @@
 // @ts-check
 /* 绘制层：全部用 Canvas 2D 绘制，不依赖任何图形库
  * 对外只暴露 init / resize / draw / toDesign / hitTest
+ *
+ * 字号约定（按 1600×900 设计坐标）：
+ *   投影时最小可读字号约 13–14，正文一律不低于 13；
+ *   纯装饰性英文小标、快捷键提示等不画。
  */
 
 window.RC = window.RC || /** @type {any} */ ({});
@@ -134,12 +138,10 @@ RC.render = (function () {
   function drawHeader() {
     if (!ctx) return;
     ctx.fillStyle = C.green2;
-    ctx.fillRect(26, 26, 4, 34);
+    ctx.fillRect(26, 22, 5, 42);
 
-    text("特征比对器", 40, 22, 30, C.white, true);
-    text("把叶片的特征变成数字，再比较谁更像谁", 40, 62, 13, C.hdrSub);
-    text("1–4 换样本　　Q / W / E 开关特征　　M 手动填卡　　R 重置　　F11 全屏",
-         cfg.DW - 26, 34, 11, C.hdrHint, false, "right");
+    text("特征比对器", 44, 16, 34, C.white, true);
+    text("把叶片的特征变成数字，再比较谁更像谁", 44, 60, 15, C.hdrSub);
   }
 
   /**
@@ -162,11 +164,9 @@ RC.render = (function () {
    * @param {number} x
    * @param {number} y
    * @param {string} title
-   * @param {string} en
    */
-  function panelTitle(x, y, title, en) {
-    text(title, x + 22, y + 18, 15, C.green, true);
-    text(en, x + 22, y + 44, 9, C.dim);
+  function panelTitle(x, y, title) {
+    text(title, x + 24, y + 14, 19, C.green, true);
   }
 
   /**
@@ -177,33 +177,32 @@ RC.render = (function () {
    * @param {number} h
    */
   function drawReferences(images, x, y, w, h) {
-    panelTitle(x, y, "参考库", "R E F E R E N C E");
+    panelTitle(x, y, "参考库");
 
-    var top = y + 66;
-    var cardH = (h - 96 - 58) / 2;
+    var top = y + 50;
+    var cardH = (h - 50 - 20) / 2;
     var slotW = 150;
 
     RC.data.refOrder.forEach(function (key, i) {
       var cy = top + i * cardH;
       var ref = RC.data.refs[key];
 
-      drawFit(images, key, x + 24, cy + 13, slotW, cardH - 26, "left");
+      drawFit(images, key, x + 24, cy + 10, slotW, cardH - 20, "left");
 
-      var tx = x + 24 + slotW + 16;
-      text(ref.name, tx, cy + cardH / 2 - 56, 22, C.ink, true);
-      text(ref.desc, tx, cy + cardH / 2 - 16, 10, C.sub);
+      var tx = x + 24 + slotW + 18;
+      var mid = cy + cardH / 2;
+      text(ref.name, tx, mid - 52, 29, C.ink, true);
+      text(ref.desc, tx, mid - 10, 14, C.sub);
       text("[ " + ref.vec.map(function (v) { return v.toFixed(2); }).join("  ") + " ]",
-           tx, cy + cardH / 2 + 10, 9, C.dim);
+           tx, mid + 20, 12, C.dim);
 
       if (i === 0) {
-        line(x + 22, cy + cardH - 8, x + w - 22, cy + cardH - 8, C.line, 1);
+        line(x + 22, cy + cardH - 4, x + w - 22, cy + cardH - 4, C.line, 1);
       }
     });
-
-    text("参考库里每一株，都提前算好一组特征值。", x + 22, y + h - 74, 9.5, C.sub);
   }
 
-  /* ---------- 顶部按钮行（图片模式 4 个 + 手动模式 1 个） ---------- */
+  /* ---------- 顶部按钮行（图片样本 4 个 + 手动填卡 1 个） ---------- */
 
   /**
    * @param {AppState} state
@@ -214,36 +213,33 @@ RC.render = (function () {
    * @returns {number} 按钮行底部 y 坐标
    */
   function drawSourceButtons(state, hoverId, x, y, w) {
-    var btnY = y + 62;
-    var btnH = 44;
+    var btnY = y + 50;
+    var btnH = 52;
     var bgap = 8;
 
-    /** @type {{id:string,label:string,sub:string,on:boolean,accent?:boolean}[]} */
-    var items = RC.data.samples.map(function (s, i) {
+    /** @type {{id:string,label:string,on:boolean,accent?:boolean}[]} */
+    var items = RC.data.samples.map(function (s) {
       return {
         id: "sample:" + s.key,
         label: s.label,
-        sub: String(i + 1),
         on: !state.manual && state.sample === s.key
       };
     });
-    items.push({ id: "manual", label: "手动填卡", sub: "M", on: state.manual, accent: true });
+    items.push({ id: "manual", label: "手动填卡", on: state.manual, accent: true });
 
     var n = items.length;
-    var bw = (w - 44 - bgap * (n - 1)) / n;
+    var bw = (w - 48 - bgap * (n - 1)) / n;
 
     items.forEach(function (it, i) {
-      var bx = x + 22 + i * (bw + bgap);
+      var bx = x + 24 + i * (bw + bgap);
       var hot = hoverId === it.id;
 
       var fill = it.on ? (it.accent ? C.rust : C.green) : (hot ? C.btnHover : C.card);
       var stroke = it.on ? (it.accent ? C.rust : C.green) : C.line;
 
-      roundRect(bx, btnY, bw, btnH, 8, fill, stroke, 1);
-      text(it.label, bx + bw / 2, btnY + 9, it.accent ? 10 : 10.5,
-           it.on ? C.white : C.ink, true, "center");
-      text(it.sub, bx + bw / 2, btnY + 28, 8,
-           it.on ? C.subTextOnGreen : C.dim, false, "center");
+      roundRect(bx, btnY, bw, btnH, 9, fill, stroke, 1);
+      text(it.label, bx + bw / 2, btnY + btnH / 2, 15,
+           it.on ? C.white : C.ink, true, "center", "middle");
 
       hit(bx, btnY, bw, btnH, it.id, function () {
         if (it.id === "manual") state.onManual();
@@ -267,18 +263,17 @@ RC.render = (function () {
    * @param {number} btnBottom
    */
   function drawImageSample(images, state, hoverId, x, y, w, h, btnBottom) {
-    var areaTop = btnBottom + 14;
-    var chipsTop = y + h - 84;
-    var areaH = chipsTop - areaTop - 62;
+    var areaTop = btnBottom + 18;
+    var chipsTop = y + h - 80;
+    var areaH = chipsTop - areaTop - 40;
 
-    drawFit(images, state.sample, x + 40, areaTop, w - 80, areaH - 10, "center");
+    drawFit(images, state.sample, x + 40, areaTop, w - 80, areaH, "center");
 
     var hint = "";
     RC.data.samples.forEach(function (s) {
       if (s.key === state.sample) hint = s.hint;
     });
-    // 右对齐，避免与左下角"参与比较的特征"标签重叠
-    text(hint, x + w - 24, chipsTop - 22, 9, C.dim, false, "right");
+    text(hint, x + w - 24, chipsTop - 30, 13, C.dim, false, "right");
 
     drawFeatureChips(state, hoverId, x, chipsTop, w, RC.data.sampleData[state.sample].vec);
   }
@@ -297,24 +292,19 @@ RC.render = (function () {
   function drawManualSample(state, hoverId, x, y, w, h, btnBottom) {
     var top = btnBottom + 18;
 
-    text("卡片上写什么，就点什么", x + 26, top, 11.5, C.sub);
-    text("你选的每一项，机器都会读成一个数字", x + 26, top + 22, 10, C.dim);
+    text("卡片上写什么，就点什么", x + 26, top, 15, C.sub);
+    text("每一项，机器都会读成一个数字", x + 26, top + 26, 13, C.dim);
 
     var vec = RC.engine.vectorFromChoices(state.choices);
 
-    var labelW = 96;
-    var optW = 190;
-    var optGap = 16;
-    var optH = 64;
+    var labelW = 104;
+    var optW = 196;
+    var optGap = 18;
+    var optH = 76;
 
-    // 三行 + 向量区在说明与 chips 之间垂直居中
-    var contentTop = top + 76;
-    var contentBottom = y + h - 84 - 34;
-    var rowH = 120;
+    var rowTop = top + 62;
+    var rowH = 132;
     var rowsH = rowH * RC.data.manualMap.length;
-    var vecH = 62;
-    var spare = Math.max(0, (contentBottom - contentTop) - (rowsH + vecH));
-    var rowTop = contentTop + spare * 0.34;
 
     var totalW = labelW + optW * 2 + optGap;
     var ox = x + (w - totalW) / 2;
@@ -322,20 +312,20 @@ RC.render = (function () {
     RC.data.manualMap.forEach(function (group, gi) {
       var ry = rowTop + gi * rowH;
 
-      text(group.feature, ox, ry + optH / 2 - 11, 16, C.ink, true);
+      text(group.feature, ox, ry + optH / 2, 20, C.ink, true, "left", "middle");
 
       group.options.forEach(function (opt, oi) {
         var bx = ox + labelW + oi * (optW + optGap);
         var selected = state.choices[gi] === opt.key;
         var hot = hoverId === "choice:" + gi + ":" + opt.key;
 
-        roundRect(bx, ry, optW, optH, 10,
+        roundRect(bx, ry, optW, optH, 11,
                   selected ? C.green : (hot ? C.btnHover : C.card),
                   selected ? C.green : C.line, 1);
 
-        text(opt.label, bx + optW / 2, ry + 11, 15,
+        text(opt.label, bx + optW / 2, ry + 13, 20,
              selected ? C.white : C.ink, true, "center");
-        text(opt.value.toFixed(2), bx + optW / 2, ry + 38, 10,
+        text(opt.value.toFixed(2), bx + optW / 2, ry + 46, 13,
              selected ? C.subTextOnGreen : C.dim, false, "center");
 
         hit(bx, ry, optW, optH, "choice:" + gi + ":" + opt.key, function () {
@@ -344,14 +334,14 @@ RC.render = (function () {
       });
     });
 
-    // 当前向量
-    var vy = rowTop + rowsH + 14;
+    // 机器读到的三个数
+    var vy = rowTop + rowsH + 10;
     line(x + 26, vy, x + w - 26, vy, C.line, 1);
-    text("机器读到的三个数", x + 26, vy + 12, 9.5, C.dim);
+    text("机器读到", x + 26, vy + 20, 13, C.dim);
     text("[ " + vec.map(function (v) { return v.toFixed(2); }).join("   ") + " ]",
-         x + 26, vy + 34, 16, C.green, true);
+         x + 118, vy + 14, 24, C.green, true);
 
-    drawFeatureChips(state, hoverId, x, y + h - 84, w, vec);
+    drawFeatureChips(state, hoverId, x, y + h - 80, w, vec);
   }
 
   /* ---------- 特征开关（两种模式共用） ---------- */
@@ -365,25 +355,24 @@ RC.render = (function () {
    * @param {FeatureVector} vec
    */
   function drawFeatureChips(state, hoverId, x, chipsTop, w, vec) {
-    text("参与比较的特征", x + 24, chipsTop - 22, 9, C.dim);
-
-    var fw = (w - 44 - 16) / 3;
+    var fh = 64;
+    var fw = (w - 48 - 16) / 3;
 
     RC.data.features.forEach(function (name, i) {
-      var fx = x + 22 + i * (fw + 8);
+      var fx = x + 24 + i * (fw + 8);
       var on = state.enabled[i];
       var hot = hoverId === "feat:" + i;
 
-      roundRect(fx, chipsTop, fw, 58, 9,
+      roundRect(fx, chipsTop, fw, fh, 9,
                 on ? C.featOnBg : (hot ? C.featHover : C.card),
                 on ? C.featOnLine : C.line, 1);
 
-      text(name, fx + fw / 2, chipsTop + 9, 13, on ? C.ink : C.dim, true, "center");
+      text(name, fx + fw / 2, chipsTop + 11, 16, on ? C.ink : C.dim, true, "center");
       text(on ? vec[i].toFixed(2) : "不参与",
-           fx + fw / 2, chipsTop + 38, 9,
+           fx + fw / 2, chipsTop + 38, 12,
            on ? C.sub : C.dim, false, "center");
 
-      hit(fx, chipsTop, fw, 58, "feat:" + i, function () {
+      hit(fx, chipsTop, fw, fh, "feat:" + i, function () {
         state.onToggleFeature(i);
       });
     });
@@ -399,8 +388,7 @@ RC.render = (function () {
    * @param {number} h
    */
   function drawSample(images, state, hoverId, x, y, w, h) {
-    panelTitle(x, y, state.manual ? "照卡片填" : "待识别样本",
-               state.manual ? "MANUAL ENTRY" : "S A M P L E");
+    panelTitle(x, y, state.manual ? "照卡片填" : "待识别样本");
 
     var btnBottom = drawSourceButtons(state, hoverId, x, y, w);
 
@@ -421,61 +409,68 @@ RC.render = (function () {
    * @param {number} h
    */
   function drawResult(state, x, y, w, h) {
-    panelTitle(x, y, "比对结果", "R E S U L T");
-
-    text("最像的是", x + 24, y + 70, 10.5, C.sub);
+    panelTitle(x, y, "比对结果");
 
     var winner = state.result.winner;
+
+    text("最像的是", x + 24, y + 58, 13, C.sub);
 
     if (winner) {
       var ref = RC.data.refs[winner];
       var color = state.result.margin > RC.config.thresholds.low ? C.green : C.rust;
-      text(ref.name, x + 22, y + 92, 52, color, true);
+      text(ref.name, x + 22, y + 82, 68, color, true);
     } else if (ctx) {
       // 没有可用特征：画一条短横线占位
       ctx.save();
       ctx.strokeStyle = C.dim;
-      ctx.lineWidth = 6;
+      ctx.lineWidth = 7;
       ctx.lineCap = "round";
       ctx.beginPath();
-      ctx.moveTo(x + 26, y + 140);
-      ctx.lineTo(x + 86, y + 140);
+      ctx.moveTo(x + 26, y + 136);
+      ctx.lineTo(x + 96, y + 136);
       ctx.stroke();
       ctx.restore();
     }
 
-    var conf;
     if (winner) {
-      conf = "相似度 " + Math.round(state.result.pct[winner]) +
-             "%　·　领先 " + Math.round(state.result.margin) + " 个百分点　·　" +
-             RC.engine.confidenceText(state.result);
+      text("相似度 " + Math.round(state.result.pct[winner]) +
+           "%　·　领先 " + Math.round(state.result.margin) + " 个百分点",
+           x + 24, y + 184, 13, C.sub);
+      text(RC.engine.confidenceText(state.result), x + 24, y + 210, 15, C.green, true);
     } else {
-      conf = "没有启用任何特征，机器无从判断";
+      text("没有启用任何特征", x + 24, y + 184, 14, C.sub);
     }
-    text(conf, x + 24, y + 190, 9.5, C.sub);
 
-    var barsTop = y + 236;
+    // 参与比较的那一组数字（手动模式下中央已显示，不重复）
+    var barsTop = y + 262;
+    if (!state.manual) {
+      var vec = state.result.vec;
+      text("这一组数字", x + 24, y + 252, 13, C.dim);
+      text("[ " + vec.map(function (v) { return v.toFixed(2); }).join("   ") + " ]",
+           x + 24, y + 274, 21, C.green, true);
+      barsTop = y + 336;
+    }
     RC.data.refOrder.forEach(function (key, i) {
-      var by = barsTop + i * 74;
+      var by = barsTop + i * 92;
       var val = state.shown[key === "jia" ? "jia" : "yi"];
       var win = winner === key;
 
-      text(RC.data.refs[key].name, x + 24, by, 13, win ? C.ink : C.sub, true);
+      text(RC.data.refs[key].name, x + 24, by, 18, win ? C.ink : C.sub, true);
       text(winner ? Math.round(val) + "%" : "—",
-           x + w - 24, by - 4, 17, win ? C.green : C.dim, true, "right");
+           x + w - 24, by - 6, 24, win ? C.green : C.dim, true, "right");
 
-      var ty = by + 26;
-      roundRect(x + 24, ty, w - 48, 16, 8, C.trackBg, null, 0);
+      var ty = by + 32;
+      roundRect(x + 24, ty, w - 48, 20, 10, C.trackBg, null, 0);
       if (val > 0.5) {
         var fwid = (w - 48) * (val / 100);
-        if (fwid > 8) {
-          roundRect(x + 24, ty, fwid, 16, 8, win ? C.green : C.trackLose, null, 0);
+        if (fwid > 10) {
+          roundRect(x + 24, ty, fwid, 20, 10, win ? C.green : C.trackLose, null, 0);
         }
       }
     });
 
-    line(x + 24, y + h - 92, x + w - 24, y + h - 92, C.line, 1);
-    text(RC.engine.note(state.result, state.manual), x + 24, y + h - 76, 11, C.sub);
+    line(x + 24, y + h - 84, x + w - 24, y + h - 84, C.line, 1);
+    text(RC.engine.note(state.result, state.manual), x + 24, y + h - 68, 14, C.sub);
 
     if (state.flash > 0.02 && ctx) {
       ctx.save();
