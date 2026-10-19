@@ -73,13 +73,12 @@ RC.render = (function () {
   /* ---------- 页面区块 ---------- */
 
   function drawHeader() {
-    // 左侧强调竖线
     ctx.fillStyle = C.green2;
     ctx.fillRect(26, 26, 4, 34);
 
     text("特征比对器", 40, 22, 30, C.white, true);
     text("把叶片的特征变成数字，再比较谁更像谁", 40, 62, 13, C.hdrSub);
-    text("1–4 换样本　　Q / W / E 开关特征　　R 重置　　F11 全屏",
+    text("1–4 换样本　　Q / W / E 开关特征　　M 手动填卡　　R 重置　　F11 全屏",
          cfg.DW - 26, 34, 11, C.hdrHint, false, "right");
   }
 
@@ -124,51 +123,126 @@ RC.render = (function () {
     text("参考库里每一株，都提前算好一组特征值。", x + 22, y + h - 74, 9.5, C.sub);
   }
 
-  function drawSample(images, state, hoverId, x, y, w, h) {
-    panelTitle(x, y, "待识别样本", "S A M P L E");
-
-    // 样本切换按钮
+  /* 顶部按钮行（图片模式 4 个 + 手动模式 1 个） */
+  function drawSourceButtons(state, hoverId, x, y, w) {
     var btnY = y + 62;
     var btnH = 44;
     var bgap = 8;
-    var n = RC.data.samples.length;
+
+    var items = RC.data.samples.map(function (s, i) {
+      return { id: "sample:" + s.key, label: s.label, sub: String(i + 1), on: !state.manual && state.sample === s.key };
+    });
+    items.push({ id: "manual", label: "手动填卡", sub: "M", on: state.manual, accent: true });
+
+    var n = items.length;
     var bw = (w - 44 - bgap * (n - 1)) / n;
 
-    RC.data.samples.forEach(function (s, i) {
+    items.forEach(function (it, i) {
       var bx = x + 22 + i * (bw + bgap);
-      var on = s.key === state.sample;
-      var hot = hoverId === "sample:" + s.key;
+      var hot = hoverId === it.id;
 
-      roundRect(bx, btnY, bw, btnH, 8,
-                on ? C.green : (hot ? C.btnHover : C.card),
-                on ? C.green : C.line, 1);
+      var fill = it.on ? (it.accent ? C.rust : C.green) : (hot ? C.btnHover : C.card);
+      var stroke = it.on ? (it.accent ? C.rust : C.green) : C.line;
 
-      text(s.label, bx + bw / 2, btnY + 9, 10.5, on ? C.white : C.ink, true, "center");
-      text(String(i + 1), bx + bw / 2, btnY + 28, 8,
-           on ? C.subTextOnGreen : C.dim, false, "center");
+      roundRect(bx, btnY, bw, btnH, 8, fill, stroke, 1);
+      text(it.label, bx + bw / 2, btnY + 9, it.accent ? 10 : 10.5,
+           it.on ? C.white : C.ink, true, "center");
+      text(it.sub, bx + bw / 2, btnY + 28, 8,
+           it.on ? C.subTextOnGreen : C.dim, false, "center");
 
-      hit(bx, btnY, bw, btnH, "sample:" + s.key, function () {
-        state.onSample(s.key);
+      hit(bx, btnY, bw, btnH, it.id, function () {
+        if (it.id === "manual") state.onManual();
+        else state.onSample(it.id.slice(7));
       });
     });
 
-    // 主图区域
-    var areaTop = btnY + btnH + 14;
+    return btnY + btnH;
+  }
+
+  /* ---------- 图片模式：主图 + 特征开关 ---------- */
+  function drawImageSample(images, state, hoverId, x, y, w, h, btnBottom) {
+    var areaTop = btnBottom + 14;
     var chipsTop = y + h - 84;
     var areaH = chipsTop - areaTop - 62;
 
     drawFit(images, state.sample, x + 40, areaTop, w - 80, areaH - 10, "center");
 
-    // 图片说明
     var hint = "";
     RC.data.samples.forEach(function (s) {
       if (s.key === state.sample) hint = s.hint;
     });
     text(hint, x + 24, chipsTop - 22, 9, C.dim);
 
-    // 特征开关
+    drawFeatureChips(state, hoverId, x, chipsTop, w, RC.data.sampleData[state.sample].vec);
+  }
+
+  /* ---------- 手动模式：三个选项组 ---------- */
+  function drawManualSample(state, hoverId, x, y, w, h, btnBottom) {
+    var top = btnBottom + 18;
+    var bottom = y + h - 84;
+
+    text("卡片上写什么，就点什么", x + 26, top, 11.5, C.sub);
+    text("你选的每一项，机器都会读成一个数字", x + 26, top + 22, 10, C.dim);
+
+    var vec = RC.engine.vectorFromChoices(state.choices);
+
+    var labelW = 96;
+    var optW = 190;
+    var optGap = 16;
+    var optH = 64;
+
+    // 三行 + 向量区在说明与 chips 之间垂直居中
+    var contentTop = top + 76;
+    var contentBottom = y + h - 84 - 34;
+    var rowH = 120;
+    var rowsH = rowH * RC.data.manualMap.length;
+    var vecH = 62;
+    var spare = Math.max(0, (contentBottom - contentTop) - (rowsH + vecH));
+    var rowTop = contentTop + spare * 0.34;
+
+    var totalW = labelW + optW * 2 + optGap;
+    var ox = x + (w - totalW) / 2;
+
+    RC.data.manualMap.forEach(function (group, gi) {
+      var ry = rowTop + gi * rowH;
+
+      text(group.feature, ox, ry + optH / 2 - 11, 16, C.ink, true);
+
+      group.options.forEach(function (opt, oi) {
+        var bx = ox + labelW + oi * (optW + optGap);
+        var selected = state.choices[gi] === opt.key;
+        var hot = hoverId === "choice:" + gi + ":" + opt.key;
+
+        roundRect(bx, ry, optW, optH, 10,
+                  selected ? C.green : (hot ? C.btnHover : C.card),
+                  selected ? C.green : C.line, 1);
+
+        text(opt.label, bx + optW / 2, ry + 11, 15,
+             selected ? C.white : C.ink, true, "center");
+        text(opt.value.toFixed(2), bx + optW / 2, ry + 38, 10,
+             selected ? C.subTextOnGreen : C.dim, false, "center");
+
+        hit(bx, ry, optW, optH, "choice:" + gi + ":" + opt.key, function () {
+          state.onChoice(gi, opt.key);
+        });
+      });
+    });
+
+    // 当前向量
+    var vy = rowTop + rowsH + 14;
+    line(x + 26, vy, x + w - 26, vy, C.line, 1);
+    text("机器读到的三个数", x + 26, vy + 12, 9.5, C.dim);
+    text("[ " + vec.map(function (v) { return v.toFixed(2); }).join("   ") + " ]",
+         x + 26, vy + 34, 16, C.green, true);
+
+    drawFeatureChips(state, hoverId, x, y + h - 84, w, vec);
+  }
+
+  /* ---------- 特征开关（两种模式共用） ---------- */
+  function drawFeatureChips(state, hoverId, x, chipsTop, w, vec) {
+    text("参与比较的特征", x + 24, chipsTop - 22, 9, C.dim);
+
     var fw = (w - 44 - 16) / 3;
-    var vec = RC.data.sampleData[state.sample].vec;
 
     RC.data.features.forEach(function (name, i) {
       var fx = x + 22 + i * (fw + 8);
@@ -180,7 +254,7 @@ RC.render = (function () {
                 on ? C.featOnLine : C.line, 1);
 
       text(name, fx + fw / 2, chipsTop + 9, 13, on ? C.ink : C.dim, true, "center");
-      text(on ? vec[i].toFixed(2) : "已关闭",
+      text(on ? vec[i].toFixed(2) : "不参与",
            fx + fw / 2, chipsTop + 38, 9,
            on ? C.sub : C.dim, false, "center");
 
@@ -190,6 +264,20 @@ RC.render = (function () {
     });
   }
 
+  function drawSample(images, state, hoverId, x, y, w, h) {
+    panelTitle(x, y, state.manual ? "照卡片填" : "待识别样本",
+               state.manual ? "MANUAL ENTRY" : "S A M P L E");
+
+    var btnBottom = drawSourceButtons(state, hoverId, x, y, w);
+
+    if (state.manual) {
+      drawManualSample(state, hoverId, x, y, w, h, btnBottom);
+    } else {
+      drawImageSample(images, state, hoverId, x, y, w, h, btnBottom);
+    }
+  }
+
+  /* ---------- 右：比对结果 ---------- */
   function drawResult(state, x, y, w, h) {
     panelTitle(x, y, "比对结果", "R E S U L T");
 
@@ -200,7 +288,6 @@ RC.render = (function () {
       var color = state.result.margin > RC.config.thresholds.low ? C.green : C.rust;
       text(ref.name, x + 22, y + 92, 52, color, true);
     } else {
-      // 没有可用特征：画一条短横线占位
       ctx.save();
       ctx.strokeStyle = C.dim;
       ctx.lineWidth = 6;
@@ -222,7 +309,6 @@ RC.render = (function () {
     }
     text(conf, x + 24, y + 190, 9.5, C.sub);
 
-    // 相似度条
     var barsTop = y + 236;
     RC.data.refOrder.forEach(function (key, i) {
       var by = barsTop + i * 74;
@@ -243,11 +329,9 @@ RC.render = (function () {
       }
     });
 
-    // 底部提示
     line(x + 24, y + h - 92, x + w - 24, y + h - 92, C.line, 1);
-    text(RC.engine.note(state.result), x + 24, y + h - 76, 11, C.sub);
+    text(RC.engine.note(state.result, state.manual), x + 24, y + h - 76, 11, C.sub);
 
-    // 结果变化时的高亮
     if (state.flash > 0.02) {
       ctx.save();
       ctx.globalAlpha = state.flash * 0.5;

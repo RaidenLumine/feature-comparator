@@ -24,14 +24,13 @@ RC.engine = {
     return used ? Math.sqrt(sum) : null;
   },
 
-  /* 评估一个样本，返回 { pct, winner, margin, featureCount } */
-  evaluate: function (sampleKey, enabled) {
+  /* 核心：对一个任意特征向量做评估 */
+  evaluateVector: function (vec, enabled) {
     var data = RC.data;
-    var sampleVec = data.sampleData[sampleKey].vec;
 
     var dist = {};
     data.refOrder.forEach(function (key) {
-      dist[key] = RC.engine.distance(sampleVec, data.refs[key].vec, enabled);
+      dist[key] = RC.engine.distance(vec, data.refs[key].vec, enabled);
     });
 
     var featureCount = enabled.filter(Boolean).length;
@@ -40,7 +39,7 @@ RC.engine = {
     if (dist[data.refOrder[0]] === null) {
       var zero = {};
       data.refOrder.forEach(function (k) { zero[k] = 0; });
-      return { pct: zero, winner: null, margin: 0, featureCount: 0 };
+      return { pct: zero, winner: null, margin: 0, featureCount: 0, vec: vec.slice() };
     }
 
     var sims = {}, total = 0;
@@ -55,15 +54,50 @@ RC.engine = {
     var winner = pct.jia >= pct.yi ? "jia" : "yi";
     var margin = Math.abs(pct.jia - pct.yi);
 
-    return { pct: pct, winner: winner, margin: margin, featureCount: featureCount };
+    return {
+      pct: pct,
+      winner: winner,
+      margin: margin,
+      featureCount: featureCount,
+      vec: vec.slice()
+    };
+  },
+
+  /* 对图片样本做评估 */
+  evaluate: function (sampleKey, enabled) {
+    var vec = RC.data.sampleData[sampleKey].vec;
+    return RC.engine.evaluateVector(vec, enabled);
+  },
+
+  /* 把卡片选项转换成特征向量 */
+  vectorFromChoices: function (choices) {
+    return RC.data.manualMap.map(function (group, i) {
+      var key = choices[i];
+      for (var j = 0; j < group.options.length; j++) {
+        if (group.options[j].key === key) return group.options[j].value;
+      }
+      return group.options[0].value;
+    });
   },
 
   /* 根据结果生成一句提示语 */
-  note: function (result) {
+  note: function (result, manual) {
     var th = RC.config.thresholds;
+
     if (result.featureCount === 0) {
       return "一个特征都没开，机器没有任何依据。";
     }
+
+    if (manual) {
+      if (result.margin > th.high) {
+        return "照卡片填进去的这三行，机器判得很干脆。";
+      }
+      if (result.margin > th.low) {
+        return "三行都填了，但把握一般——说明这几个特征区分度不高。";
+      }
+      return "特征填得越接近，机器就越说不清——它只能给出「最像」。";
+    }
+
     if (result.featureCount === 3) {
       return result.margin > th.high
         ? "三个特征一起看，结论明确。"

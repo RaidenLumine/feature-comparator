@@ -9,14 +9,27 @@
   /* ---------- 状态 ---------- */
 
   var state = {
+    manual: false,                          // false = 图片样本；true = 照卡片填
     sample: "s1",
     enabled: [true, true, true],
+    choices: data.manualDefault.slice(),    // 手动模式下三个特征的选择
     result: null,
-    shown: { jia: 0, yi: 0 },   // 动画中的显示值
-    flash: 0,                   // 结果变化时的高亮强度
+    shown: { jia: 0, yi: 0 },               // 动画中的显示值
+    flash: 0,                               // 结果变化时的高亮强度
 
     onSample: function (key) {
+      state.manual = false;
       state.sample = key;
+      refresh(true);
+    },
+
+    onManual: function () {
+      state.manual = true;
+      refresh(true);
+    },
+
+    onChoice: function (groupIndex, key) {
+      state.choices[groupIndex] = key;
       refresh(true);
     },
 
@@ -26,14 +39,16 @@
     },
 
     onReset: function () {
+      state.manual = false;
       state.sample = "s1";
       state.enabled = [true, true, true];
+      state.choices = data.manualDefault.slice();
       state.shown = { jia: 0, yi: 0 };
       refresh(true);
     }
   };
 
-  // 先算一次，保证首帧绘制时有结果可用
+  /* 先算一次，保证首帧绘制时有结果可用 */
   state.result = engine.evaluate(state.sample, state.enabled);
   state.shown.jia = state.result.pct.jia;
   state.shown.yi = state.result.pct.yi;
@@ -44,8 +59,16 @@
 
   /* ---------- 计算与动画 ---------- */
 
+  function computeResult() {
+    if (state.manual) {
+      var vec = engine.vectorFromChoices(state.choices);
+      return engine.evaluateVector(vec, state.enabled);
+    }
+    return engine.evaluate(state.sample, state.enabled);
+  }
+
   function refresh(animate) {
-    state.result = engine.evaluate(state.sample, state.enabled);
+    state.result = computeResult();
     state.flash = 1;
 
     if (animate === false) {
@@ -153,6 +176,10 @@
         state.onToggleFeature({ q: 0, w: 1, e: 2 }[k]);
         return;
       }
+      if (k === "m") {
+        state.onManual();
+        return;
+      }
       if (k === "r") {
         state.onReset();
         return;
@@ -183,7 +210,10 @@
     }
   }
 
-  /* ---------- 可选的 URL 参数（排练时直达某一幕） ---------- */
+  /* ---------- URL 参数（排练时直达某一幕） ----------
+   * ?s=s2&f=010                    图片样本 + 特征开关
+   * ?m=1&c=serrated,light,dense    手动模式 + 卡片选项
+   */
 
   function applyQuery() {
     try {
@@ -194,9 +224,24 @@
         q[decodeURIComponent(parts[0])] = decodeURIComponent(parts[1] || "");
       });
 
-      if (q.s && data.sampleData[q.s]) state.sample = q.s;
+      if (q.s && data.sampleData[q.s]) {
+        state.sample = q.s;
+        state.manual = false;
+      }
       if (q.f && q.f.length === 3) {
         state.enabled = q.f.split("").map(function (c) { return c === "1"; });
+      }
+      if (q.m === "1") {
+        state.manual = true;
+      }
+      if (q.c) {
+        var keys = q.c.split(",");
+        if (keys.length === 3) {
+          data.manualMap.forEach(function (group, i) {
+            var exists = group.options.some(function (o) { return o.key === keys[i]; });
+            if (exists) state.choices[i] = keys[i];
+          });
+        }
       }
     } catch (err) {
       /* 参数不合法时静默忽略，使用默认状态 */
